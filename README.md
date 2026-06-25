@@ -4,8 +4,6 @@ A command-line tool that calculates the probability of encountering at least one
 
 ## Installation
 
-### From source
-
 ```bash
 go install github.com/danxxxr/lstreak@latest
 ```
