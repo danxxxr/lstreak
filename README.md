@@ -24,6 +24,7 @@ Options:
   -single           print a single value; requires -n and -l
   -n int            number of trades (single mode)
   -l int            streak length (single mode)
+  -version          print version and exit
 ```
 
 ## Examples
