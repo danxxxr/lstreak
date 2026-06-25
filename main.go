@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+const version = "0.1.0"
+
 // streakProb returns P(at least one losing streak of length >= L in N trades).
 //
 // Recurrence (DP):
@@ -149,6 +151,7 @@ func main() {
 	single := flag.Bool("single", false, "print a single value; requires -n and -l")
 	nVal := flag.Int("n", 0, "number of trades (single mode)")
 	lVal := flag.Int("l", 0, "streak length (single mode)")
+	ver := flag.Bool("version", false, "print version and exit")
 
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, `lstreak — losing streak probability calculator
@@ -166,6 +169,11 @@ Examples:
   lstreak -single -n 100 -l 7       # single value`)
 	}
 	flag.Parse()
+
+	if *ver {
+		fmt.Println("lstreak version", version)
+		return
+	}
 
 	wr := *winRate / 100.0
 	if wr <= 0 || wr >= 1 {
