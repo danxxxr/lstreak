@@ -22,6 +22,8 @@ Options:
   -single           print a single value; requires -n and -l
   -n int            number of trades (single mode)
   -l int            streak length (single mode)
+  -csv              output as CSV
+  -i                interactive mode
   -version          print version and exit
 ```
 
@@ -50,6 +52,16 @@ lstreak -trades 50,100,500,1000
 Single value:
 ```
 lstreak -single -n 100 -l 7
+```
+
+Export to CSV:
+```
+lstreak -csv > table.csv
+```
+
+Interactive mode:
+```
+lstreak -i
 ```
 
 ## How it works
