@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 // streakProb returns P(at least one losing streak of length >= L in N trades).
 //
@@ -194,15 +194,16 @@ Usage: lstreak [options]
 
 Options:`)
 		flag.PrintDefaults()
-		fmt.Fprintln(os.Stderr, `Examples:
-	lstreak                              # full table, win rate 50%
-	lstreak -wr 55                       # win rate 55%
-	lstreak -wr 45 -max-streak 10        # streak lengths 2..10
-	lstreak -trades 50,100,500,1000      # custom row set
-	lstreak -single -n 100 -l 7          # single value
-	lstreak -csv > table.csv             # export to CSV
-	lstreak -wr 55 -csv > table.csv      # export with custom win rate
-	lstreak -i                           # interactive mode`)
+		fmt.Fprintln(os.Stderr, `
+Examples:
+  lstreak                              # full table, win rate 50%
+  lstreak -wr 55                       # win rate 55%
+  lstreak -wr 45 -max-streak 10        # streak lengths 2..10
+  lstreak -trades 50,100,500,1000      # custom row set
+  lstreak -single -n 100 -l 7          # single value
+  lstreak -csv > table.csv             # export to CSV
+  lstreak -wr 55 -csv > table.csv      # export with custom win rate
+  lstreak -i                           # interactive mode`)
 	}
 	flag.Parse()
 
