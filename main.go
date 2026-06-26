@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"math"
@@ -97,26 +98,26 @@ func autoNoColor() bool {
 func colorOf(p float64) (pre, post string) {
 	pct := p * 100
 	switch {
-	case pct < 0.005:
-		return "\033[90m", "\033[0m" // grey
-	case pct <= 5:
-		return "\033[32m", "\033[0m" // green
-	case pct <= 15:
-		return "\033[92m", "\033[0m" // light green
-	case pct <= 35:
-		return "\033[33m", "\033[0m" // yellow
-	case pct <= 55:
-		return "\033[93m", "\033[0m" // light yellow
-	case pct <= 75:
-		return "\033[91m", "\033[0m" // light red
-	default:
-		return "\033[31m", "\033[0m" // red
+		case pct < 0.005:
+			return "\033[90m", "\033[0m" // grey
+		case pct <= 5:
+			return "\033[32m", "\033[0m" // green
+		case pct <= 15:
+			return "\033[92m", "\033[0m" // light green
+		case pct <= 35:
+			return "\033[33m", "\033[0m" // yellow
+		case pct <= 55:
+			return "\033[93m", "\033[0m" // light yellow
+		case pct <= 75:
+			return "\033[91m", "\033[0m" // light red
+		default:
+			return "\033[31m", "\033[0m" // red
 	}
 }
 
 func printTable(winRate float64, minL, maxL int, trades []int, noColor bool) {
 	fmt.Printf("\nLOSING STREAK PROBABILITIES  [win rate: %.2f%%]\n\n",
-		winRate*100)
+		   winRate*100)
 
 	fmt.Printf("%-10s", "trades\\L")
 	for L := minL; L <= maxL; L++ {
@@ -142,31 +143,64 @@ func printTable(winRate float64, minL, maxL int, trades []int, noColor bool) {
 	fmt.Println()
 }
 
+func printCSV(winRate float64, minL, maxL int, trades []int) error {
+	w := csv.NewWriter(os.Stdout)
+
+	// header row: "trades\L", 2, 3, 4, ...
+	header := make([]string, 0, maxL-minL+2)
+	header = append(header, "trades\\L")
+	for L := minL; L <= maxL; L++ {
+		header = append(header, strconv.Itoa(L))
+	}
+	if err := w.Write(header); err != nil {
+		return err
+	}
+
+	// data rows
+	for _, n := range trades {
+		row := make([]string, 0, maxL-minL+2)
+		row = append(row, strconv.Itoa(n))
+		for L := minL; L <= maxL; L++ {
+			p := streakProb(n, L, winRate)
+			row = append(row, fmt.Sprintf("%.2f", p*100))
+		}
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+
+	w.Flush()
+	return w.Error()
+}
+
 func main() {
-	winRate := flag.Float64("wr", 50.0, "win rate in percent (e.g. 55.5)")
-	minL := flag.Int("min-streak", 2, "minimum streak length column")
-	maxL := flag.Int("max-streak", 15, "maximum streak length column")
-	tradesStr := flag.String("trades", "", "comma-separated trade counts (default preset)")
-	noColor := flag.Bool("no-color", false, "disable ANSI color output")
-	single := flag.Bool("single", false, "print a single value; requires -n and -l")
-	nVal := flag.Int("n", 0, "number of trades (single mode)")
-	lVal := flag.Int("l", 0, "streak length (single mode)")
-	ver := flag.Bool("version", false, "print version and exit")
+	winRate   := flag.Float64("wr",        50.0,  "win rate in percent (e.g. 55.5)")
+	minL      := flag.Int("min-streak",    2,     "minimum streak length column")
+	maxL      := flag.Int("max-streak",    15,    "maximum streak length column")
+	tradesStr := flag.String("trades",     "",    "comma-separated trade counts (default preset)")
+	noColor   := flag.Bool("no-color",     false, "disable ANSI color output")
+	single    := flag.Bool("single",       false, "print a single value; requires -n and -l")
+	nVal      := flag.Int("n",             0,     "number of trades (single mode)")
+	lVal      := flag.Int("l",             0,     "streak length (single mode)")
+	csvMode   := flag.Bool("csv",          false, "output as CSV")
+	ver       := flag.Bool("version",      false, "print version and exit")
 
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, `lstreak — losing streak probability calculator
 
-Usage: lstreak [options]
+		Usage: lstreak [options]
 
-Options:`)
+		Options:`)
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr, `
-Examples:
-  lstreak                           # full table, win rate 50%
-  lstreak -wr 55                    # win rate 55%
-  lstreak -wr 45 -max-streak 10     # streak lengths 2..10
-  lstreak -trades 50,100,500,1000   # custom row set
-  lstreak -single -n 100 -l 7       # single value`)
+		Examples:
+		lstreak                              # full table, win rate 50%
+		lstreak -wr 55                       # win rate 55%
+		lstreak -wr 45 -max-streak 10        # streak lengths 2..10
+		lstreak -trades 50,100,500,1000      # custom row set
+		lstreak -single -n 100 -l 7         # single value
+		lstreak -csv > table.csv             # export to CSV
+		lstreak -wr 55 -csv > table.csv      # export with custom win rate`)
 	}
 	flag.Parse()
 
@@ -185,8 +219,14 @@ Examples:
 		os.Exit(1)
 	}
 
-	if !*noColor {
-		*noColor = autoNoColor()
+	trades := defaultTrades()
+	if *tradesStr != "" {
+		var err error
+		trades, err = parseTrades(*tradesStr)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
 	}
 
 	if *single {
@@ -196,18 +236,20 @@ Examples:
 		}
 		p := streakProb(*nVal, *lVal, wr)
 		fmt.Printf("P(losing streak >= %d in %d trades | win rate %.2f%%) = %.4f%%\n",
-			*lVal, *nVal, *winRate, p*100)
+			   *lVal, *nVal, *winRate, p*100)
 		return
 	}
 
-	trades := defaultTrades()
-	if *tradesStr != "" {
-		var err error
-		trades, err = parseTrades(*tradesStr)
-		if err != nil {
+	if *csvMode {
+		if err := printCSV(wr, *minL, *maxL, trades); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
+		return
+	}
+
+	if !*noColor {
+		*noColor = autoNoColor()
 	}
 
 	printTable(wr, *minL, *maxL, trades, *noColor)
