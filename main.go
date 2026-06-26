@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"flag"
 	"fmt"
@@ -174,38 +175,44 @@ func printCSV(winRate float64, minL, maxL int, trades []int) error {
 }
 
 func main() {
-	winRate   := flag.Float64("wr",        50.0,  "win rate in percent (e.g. 55.5)")
-	minL      := flag.Int("min-streak",    2,     "minimum streak length column")
-	maxL      := flag.Int("max-streak",    15,    "maximum streak length column")
-	tradesStr := flag.String("trades",     "",    "comma-separated trade counts (default preset)")
-	noColor   := flag.Bool("no-color",     false, "disable ANSI color output")
-	single    := flag.Bool("single",       false, "print a single value; requires -n and -l")
-	nVal      := flag.Int("n",             0,     "number of trades (single mode)")
-	lVal      := flag.Int("l",             0,     "streak length (single mode)")
-	csvMode   := flag.Bool("csv",          false, "output as CSV")
-	ver       := flag.Bool("version",      false, "print version and exit")
+	winRate     := flag.Float64("wr",        50.0,  "win rate in percent (e.g. 55.5)")
+	minL        := flag.Int("min-streak",    2,     "minimum streak length column")
+	maxL        := flag.Int("max-streak",    15,    "maximum streak length column")
+	tradesStr   := flag.String("trades",     "",    "comma-separated trade counts (default preset)")
+	noColor     := flag.Bool("no-color",     false, "disable ANSI color output")
+	single      := flag.Bool("single",       false, "print a single value; requires -n and -l")
+	nVal        := flag.Int("n",             0,     "number of trades (single mode)")
+	lVal        := flag.Int("l",             0,     "streak length (single mode)")
+	csvMode     := flag.Bool("csv",          false, "output as CSV")
+	interactive := flag.Bool("i",            false, "interactive mode")
+	ver         := flag.Bool("version",      false, "print version and exit")
 
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, `lstreak — losing streak probability calculator
 
-		Usage: lstreak [options]
+Usage: lstreak [options]
 
-		Options:`)
+Options:`)
 		flag.PrintDefaults()
-		fmt.Fprintln(os.Stderr, `
-		Examples:
-		lstreak                              # full table, win rate 50%
-		lstreak -wr 55                       # win rate 55%
-		lstreak -wr 45 -max-streak 10        # streak lengths 2..10
-		lstreak -trades 50,100,500,1000      # custom row set
-		lstreak -single -n 100 -l 7         # single value
-		lstreak -csv > table.csv             # export to CSV
-		lstreak -wr 55 -csv > table.csv      # export with custom win rate`)
+		fmt.Fprintln(os.Stderr, `Examples:
+	lstreak                              # full table, win rate 50%
+	lstreak -wr 55                       # win rate 55%
+	lstreak -wr 45 -max-streak 10        # streak lengths 2..10
+	lstreak -trades 50,100,500,1000      # custom row set
+	lstreak -single -n 100 -l 7          # single value
+	lstreak -csv > table.csv             # export to CSV
+	lstreak -wr 55 -csv > table.csv      # export with custom win rate
+	lstreak -i                           # interactive mode`)
 	}
 	flag.Parse()
 
 	if *ver {
 		fmt.Println("lstreak version", version)
+		return
+	}
+
+	if *interactive {
+		runInteractive()
 		return
 	}
 
@@ -253,4 +260,78 @@ func main() {
 	}
 
 	printTable(wr, *minL, *maxL, trades, *noColor)
+}
+
+func runInteractive() {
+	reader := bufio.NewReader(os.Stdin)
+
+	readLine := func(prompt string) string {
+		fmt.Print(prompt)
+		s, _ := reader.ReadString('\n')
+		return strings.TrimSpace(s)
+	}
+
+	var wr float64
+	for {
+		s := readLine("Win rate (%): ")
+		v, err := strconv.ParseFloat(s, 64)
+		if err != nil || v <= 0 || v >= 100 {
+			fmt.Fprintln(os.Stderr, "error: enter a number between 0 and 100")
+			continue
+		}
+		wr = v / 100.0
+		break
+	}
+
+	var minL int
+	for {
+		s := readLine("Min streak length (default 2): ")
+		if s == "" {
+			minL = 2
+			break
+		}
+		v, err := strconv.Atoi(s)
+		if err != nil || v < 1 {
+			fmt.Fprintln(os.Stderr, "error: enter a positive integer")
+			continue
+		}
+		minL = v
+		break
+	}
+
+	var maxL int
+	for {
+		s := readLine("Max streak length (default 15): ")
+		if s == "" {
+			maxL = 15
+			break
+		}
+		v, err := strconv.Atoi(s)
+		if err != nil || v < minL {
+			fmt.Fprintf(os.Stderr, "error: enter an integer >= %d\n", minL)
+			continue
+		}
+		maxL = v
+		break
+	}
+
+	var trades []int
+	for {
+		s := readLine("Trade counts, comma-separated (Enter for default): ")
+		if s == "" {
+			trades = defaultTrades()
+			break
+		}
+		t, err := parseTrades(s)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			continue
+		}
+		trades = t
+		break
+	}
+
+	fmt.Println()
+	noColor := autoNoColor()
+	printTable(wr, minL, maxL, trades, noColor)
 }
